@@ -3,8 +3,8 @@
 
 var margin = {t:100,r:100,b:200,l:150},
     width = $('.canvas').width() - margin.l - margin.r,
-    height = $('.canvas').height() - margin.t - margin.b;
-
+    height = $('.canvas').height() - margin.t - margin.b,
+    padding=3;
 
 //Set up SVG drawing elements -- already done
 var svg = d3.select('.canvas')
@@ -19,7 +19,7 @@ var projection = d3.geo.mercator()
     .translate([width/2,height/2])
     .scale(270);
 
-var scaleSize = d3.scale.sqrt().range([5,100]);
+var scaleSize = d3.scale.sqrt().range([5,80]);
 
 //force layout
 var force = d3.layout.force()
@@ -31,7 +31,9 @@ var force = d3.layout.force()
 d3.csv('data/world.csv',parse,function(err,world){
     //console.log(world);
 
-    var extent = d3.extent(world, function(d){return d.pop;});
+    var extent = d3.extent(world, function(d){
+    return d.pop;
+    });
     scaleSize
         .domain(extent);
 
@@ -61,13 +63,15 @@ d3.csv('data/world.csv',parse,function(err,world){
 
     countries
         .attr('transform',function(d){
+            //var xy = projection(d.lngLat);
             return 'translate('+ d.x+','+ d.y+')';
         });
     countries
         .append('circle')
         .attr('r',function(d){
             return scaleSize(d.pop);
-        });
+        })
+        //.style('fill','#FFFFE0');
 
     force
         .nodes(nodesArray)
@@ -76,11 +80,44 @@ d3.csv('data/world.csv',parse,function(err,world){
 
     function onTick(e){
         countries
+            .each(gravity(e.alpha*0.1))
+            .each(collide(0.5))
             .attr('transform',function(d){
                 return 'translate('+ d.x+','+ d.y+')';
             });
     }
-
+    function gravity(k){
+    return function(d){
+      d.x += (d.x0 - d.x)*k;
+      d.y += (d.y0 - d.y)*k;
+    };
+ }
+ function collide(k){
+ var q = d3.geom.quadtree(nodesArray);
+ return function(node){
+ var nr = node.r+padding,
+     nx1=node.x-nr,
+     nx2=node.x+nr,
+     ny1=node.y-nr,
+     ny2=node.y+nr;
+ q.visit(function(quad,x1,y1,x2,y2){
+ if (quad.point&&(quad.point !== node)){
+ var x =node.x -quad.point.x,
+     y =node.y-quad.point.y,
+     l=x*x+y*y,
+     r=nr+quad.point.r;
+ if(l<r*r){
+   l=((l=Math.sqrt(l))-r)/l*k;
+   node.x -= x*=l;
+   node.y -= y*=l;
+   quad.point.x+=x;
+   quad.point.y+=y;
+ }
+ }
+ return x1>nx2 ||x2<nx1 ||y1>ny2||y2<ny1;
+ });
+ };
+ }
 });
 
 //Import data
